@@ -1,12 +1,12 @@
 /*
  Copyright 2016 Microsoft, Inc.
- 
+
  Licensed under the Apache License, Version 2.0 (the "License");
  you may not use this file except in compliance with the License.
  You may obtain a copy of the License at
- 
+
  http://www.apache.org/licenses/LICENSE-2.0
- 
+
  Unless required by applicable law or agreed to in writing, software
  distributed under the License is distributed on an "AS IS" BASIS,
  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
@@ -17,32 +17,30 @@ package com.microsoft.azure.vmagent;
 
 import com.microsoft.azure.util.AzureCredentials;
 import com.microsoft.azure.vmagent.util.AzureUtil;
-import java.io.IOException;
-import java.util.HashMap;
-import java.util.Map;
-import java.util.logging.Logger;
-
+import com.microsoft.azure.vmagent.util.Constants;
 import hudson.Extension;
 import hudson.model.AsyncPeriodicWork;
 import hudson.model.TaskListener;
-import com.microsoft.azure.vmagent.util.Constants;
+import java.io.IOException;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.logging.Level;
+import java.util.logging.Logger;
 import jenkins.model.Jenkins;
 import org.apache.commons.lang.StringUtils;
 
 /**
- * Performs a few types of verification: 1. Overall subscription verification.
- * 2. Approximate VM count verification 3. Template verification.
+ * Performs a few types of verification: 1. Overall subscription verification. 2. Approximate VM
+ * count verification 3. Template verification.
  *
- * When a new AzureVMCloud is constructed or a new template is added via CLI
- * interface, then we will manually trigger this workload.
+ * When a new AzureVMCloud is constructed or a new template is added via CLI interface, then we will
+ * manually trigger this workload.
  *
- * This thread serves as a gate for whether we can create VMs from a certain
- * template
+ * This thread serves as a gate for whether we can create VMs from a certain template
  *
  * @author mmitche
  */
@@ -82,7 +80,7 @@ public final class AzureVMCloudVerificationTask extends AsyncPeriodicWork {
                     // was registered.  Remove from the list
                     if (cloud == null) {
                         LOGGER.log(Level.INFO, "AzureVMCloudVerificationTask: execute: subscription {0} not found, skipping", cloudName);
-                        // Remove 
+                        // Remove
                         toRemove.add(cloudName);
                         continue;
                     }
@@ -100,7 +98,7 @@ public final class AzureVMCloudVerificationTask extends AsyncPeriodicWork {
                         LOGGER.log(Level.INFO, "AzureVMCloudVerificationTask: execute: {0} verified", cloudName);
                         // Update the count
                         cloud.setVirtualMachineCount(getVirtualMachineCount(cloud));
-                        // We grab the current VM count and 
+                        // We grab the current VM count and
                         cloud.setConfigurationValid(true);
                         continue;
                     }
@@ -166,8 +164,7 @@ public final class AzureVMCloudVerificationTask extends AsyncPeriodicWork {
                             agentTemplate.setTemplateVerified(true);
                             // Reset the status details
                             agentTemplate.setTemplateStatusDetails("");
-                        }
-                        else {
+                        } else {
                             String details = StringUtils.join(errors, "\n");
                             LOGGER.log(Level.INFO, "AzureVMCloudVerificationTask: execute: {0} could not be verified:\n{1}",
                                     new Object[]{templateName, details});
@@ -193,17 +190,17 @@ public final class AzureVMCloudVerificationTask extends AsyncPeriodicWork {
 
     /**
      * Checks the subscription for validity if needed
+     *
      * @param cloud
-     * @return True if the subscription is valid, false otherwise. Updates the
-     * cloud state if it is. If subscription is not valid, then we can just
-     * return
+     * @return True if the subscription is valid, false otherwise. Updates the cloud state if it is.
+     * If subscription is not valid, then we can just return
      */
     public boolean verifyConfiguration(AzureVMCloud cloud) {
         LOGGER.info("AzureVMCloudVerificationTask: verifyConfiguration: start");
 
         // Check the sub and off we go
         String result = AzureVMManagementServiceDelegate.verifyConfiguration(cloud.getServicePrincipal(), cloud.getResourceGroupName(),
-                        Integer.toString(cloud.getMaxVirtualMachinesLimit()), Integer.toString(cloud.getDeploymentTimeout()));
+                Integer.toString(cloud.getMaxVirtualMachinesLimit()), Integer.toString(cloud.getDeploymentTimeout()));
         if (result != Constants.OP_SUCCESS) {
             LOGGER.log(Level.INFO, "AzureVMCloudVerificationTask: verifyConfiguration: {0}", result);
             cloud.setConfigurationValid(false);
@@ -215,6 +212,7 @@ public final class AzureVMCloudVerificationTask extends AsyncPeriodicWork {
 
     /**
      * Retrieve the current VM count.
+     *
      * @param cloud
      * @return
      */
@@ -235,6 +233,7 @@ public final class AzureVMCloudVerificationTask extends AsyncPeriodicWork {
 
     /**
      * Register more than one template at once
+     *
      * @param templatesToRegister List of templates to register
      */
     public static void registerTemplates(final List<AzureVMAgentTemplate> templatesToRegister) {
@@ -247,6 +246,7 @@ public final class AzureVMCloudVerificationTask extends AsyncPeriodicWork {
 
     /**
      * Registers a template for verification
+     *
      * @param template Template to register
      */
     public static void registerTemplate(final AzureVMAgentTemplate template) {
@@ -256,8 +256,7 @@ public final class AzureVMCloudVerificationTask extends AsyncPeriodicWork {
     }
 
     /**
-     * Registers a single template. The lock should be held while calling this
-     * method
+     * Registers a single template. The lock should be held while calling this method
      *
      * @param template Template to register
      */
@@ -265,7 +264,7 @@ public final class AzureVMCloudVerificationTask extends AsyncPeriodicWork {
         synchronized (templatesLock) {
             String cloudName = "<unknown>";
             AzureCredentials.ServicePrincipal sp = template.getAzureCloud().getServicePrincipal();
-            if(sp != null) {
+            if (sp != null) {
                 cloudName = AzureUtil.getCloudName(sp.getSubscriptionId());
             }
             LOGGER.log(Level.INFO, "AzureVMCloudVerificationTask: registerTemplateHelper: Registering template {0} on {1} for verification",
@@ -279,6 +278,7 @@ public final class AzureVMCloudVerificationTask extends AsyncPeriodicWork {
 
     /**
      * Register a cloud for verification
+     *
      * @param cloudName
      */
     public static void registerCloud(final String cloudName) {

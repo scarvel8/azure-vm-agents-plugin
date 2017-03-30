@@ -17,9 +17,11 @@ package com.microsoft.azure.vmagent;
 
 /**
  * Simple class with info from a new Azure deployment
+ *
  * @author mmitche
  */
 public class AzureVMDeploymentInfo {
+
     private String deploymentName;
     private String vmBaseName;
     private int vmCount;
@@ -41,6 +43,5 @@ public class AzureVMDeploymentInfo {
     public int getVmCount() {
         return vmCount;
     }
-    
-    
+
 }

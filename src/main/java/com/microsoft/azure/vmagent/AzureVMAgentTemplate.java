@@ -1,12 +1,12 @@
 /*
  Copyright 2016 Microsoft, Inc.
- 
+
  Licensed under the Apache License, Version 2.0 (the "License");
  you may not use this file except in compliance with the License.
  You may obtain a copy of the License at
- 
+
  http://www.apache.org/licenses/LICENSE-2.0
- 
+
  Unless required by applicable law or agreed to in writing, software
  distributed under the License is distributed on an "AS IS" BASIS,
  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
@@ -19,47 +19,41 @@ import com.cloudbees.plugins.credentials.CredentialsProvider;
 import com.cloudbees.plugins.credentials.common.StandardListBoxModel;
 import com.cloudbees.plugins.credentials.common.StandardUsernamePasswordCredentials;
 import com.cloudbees.plugins.credentials.domains.DomainRequirement;
-import com.microsoft.azure.vmagent.Messages;
 import com.microsoft.azure.util.AzureCredentials;
 import com.microsoft.azure.util.AzureCredentials.ServicePrincipal;
 import com.microsoft.azure.vmagent.exceptions.AzureCloudException;
-import java.io.IOException;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Set;
-import java.util.logging.Logger;
-
-import javax.servlet.ServletException;
-
-import jenkins.model.Jenkins;
-
-import org.kohsuke.stapler.DataBoundConstructor;
-import org.kohsuke.stapler.QueryParameter;
-
 import com.microsoft.azure.vmagent.util.AzureUtil;
 import com.microsoft.azure.vmagent.util.Constants;
 import com.microsoft.azure.vmagent.util.FailureStage;
-
 import hudson.Extension;
 import hudson.RelativePath;
 import hudson.model.Describable;
-import hudson.model.TaskListener;
 import hudson.model.Descriptor;
 import hudson.model.Item;
 import hudson.model.Label;
 import hudson.model.Node;
+import hudson.model.TaskListener;
 import hudson.model.labels.LabelAtom;
 import hudson.security.ACL;
 import hudson.util.FormValidation;
 import hudson.util.ListBoxModel;
+import java.io.IOException;
 import java.io.UnsupportedEncodingException;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
+import java.util.ArrayList;
 import java.util.Collections;
+import java.util.List;
+import java.util.Set;
 import java.util.logging.Level;
+import java.util.logging.Logger;
+import javax.servlet.ServletException;
 import javax.xml.bind.DatatypeConverter;
+import jenkins.model.Jenkins;
 import org.apache.commons.lang.StringUtils;
 import org.kohsuke.stapler.AncestorInPath;
+import org.kohsuke.stapler.DataBoundConstructor;
+import org.kohsuke.stapler.QueryParameter;
 
 /**
  * This class defines the configuration of Azure instance templates
@@ -226,7 +220,7 @@ public class AzureVMAgentTemplate implements Describable<AzureVMAgentTemplate> {
     }
 
     public String isType(final String type) {
-        if(this.imageReferenceType == null && type.equals("reference")) {
+        if (this.imageReferenceType == null && type.equals("reference")) {
             return "true";
         }
         return type != null && type.equalsIgnoreCase(this.imageReferenceType) ? "true" : "false";
@@ -249,7 +243,6 @@ public class AzureVMAgentTemplate implements Describable<AzureVMAgentTemplate> {
         return virtualMachineSize;
     }
 
-
     public String getStorageAccountName() {
         return storageAccountName;
     }
@@ -268,7 +261,7 @@ public class AzureVMAgentTemplate implements Describable<AzureVMAgentTemplate> {
 
     public void setUsageMode(final String mode) {
         Node.Mode val = Node.Mode.NORMAL;
-        for(Node.Mode m : hudson.Functions.getNodeModes()) {
+        for (Node.Mode m : hudson.Functions.getNodeModes()) {
             if (mode.equalsIgnoreCase(m.getDescription())) {
                 val = m;
                 break;
@@ -336,7 +329,7 @@ public class AzureVMAgentTemplate implements Describable<AzureVMAgentTemplate> {
     public void setSubnetName(String subnetName) {
         this.subnetName = subnetName;
     }
-    
+
     public boolean getUsePrivateIP() {
         return usePrivateIP;
     }
@@ -361,7 +354,7 @@ public class AzureVMAgentTemplate implements Describable<AzureVMAgentTemplate> {
         azureCloud = cloud;
         if (StringUtils.isBlank(storageAccountName)) {
             storageAccountName = AzureVMAgentTemplate.generateUniqueStorageAccountName(azureCloud.getResourceGroupName(), azureCloud.getServicePrincipal());
-            
+
         }
     }
 
@@ -382,8 +375,7 @@ public class AzureVMAgentTemplate implements Describable<AzureVMAgentTemplate> {
     }
 
     /**
-     * Returns true if this template is disabled and cannot be used, false
-     * otherwise.
+     * Returns true if this template is disabled and cannot be used, false otherwise.
      *
      * @return True/false
      */
@@ -460,8 +452,7 @@ public class AzureVMAgentTemplate implements Describable<AzureVMAgentTemplate> {
     }
 
     /**
-     * If provisioning failed, handle the status and queue the template for
-     * verification.
+     * If provisioning failed, handle the status and queue the template for verification.
      *
      * @param message Failure message
      * @param failureStep Stage that failure occurred
@@ -489,7 +480,7 @@ public class AzureVMAgentTemplate implements Describable<AzureVMAgentTemplate> {
                 virtualMachineSize,
                 storageAccountName,
                 noOfParallelJobs + "",
-                (imageReferenceType == null) ? ImageReferenceType.UNKNOWN : ( imageReferenceType.equals("custom") ? ImageReferenceType.CUSTOM : ImageReferenceType.REFERENCE),
+                (imageReferenceType == null) ? ImageReferenceType.UNKNOWN : (imageReferenceType.equals("custom") ? ImageReferenceType.CUSTOM : ImageReferenceType.REFERENCE),
                 image,
                 osType,
                 imagePublisher,
@@ -562,10 +553,10 @@ public class AzureVMAgentTemplate implements Describable<AzureVMAgentTemplate> {
 
             return model;
         }
-        
+
         public ListBoxModel doFillUsageModeItems() throws IOException, ServletException {
             ListBoxModel model = new ListBoxModel();
-            for(Node.Mode m : hudson.Functions.getNodeModes()) {
+            for (Node.Mode m : hudson.Functions.getNodeModes()) {
                 model.add(m.getDescription());
             }
             return model;
@@ -603,8 +594,7 @@ public class AzureVMAgentTemplate implements Describable<AzureVMAgentTemplate> {
         }
 
         /**
-         * Check the template's name. Name must conform to restrictions on VM
-         * naming
+         * Check the template's name. Name must conform to restrictions on VM naming
          *
          * @param value Current name
          * @param templateDisabled Is the template disabled
@@ -710,15 +700,16 @@ public class AzureVMAgentTemplate implements Describable<AzureVMAgentTemplate> {
             /*
             imageReferenceType will not be passed to doVerifyConfiguration unless Jenkins core has https://github.com/jenkinsci/jenkins/pull/2734
             The plugin should be able to run in both modes.
-            */
+             */
             ImageReferenceType referenceType = ImageReferenceType.UNKNOWN;
             if (imageReferenceType != null) {
                 referenceType = imageReferenceType.equals("custom") ? ImageReferenceType.CUSTOM : ImageReferenceType.REFERENCE;
             }
 
             AzureCredentials.ServicePrincipal servicePrincipal = AzureCredentials.getServicePrincipal(azureCredentialsId);
-            if(storageAccountName.trim().isEmpty())
+            if (storageAccountName.trim().isEmpty()) {
                 storageAccountName = AzureVMAgentTemplate.generateUniqueStorageAccountName(resourceGroupName, servicePrincipal);
+            }
 
             LOGGER.log(Level.INFO,
                     "Verify configuration:\n\t"
@@ -775,8 +766,8 @@ public class AzureVMAgentTemplate implements Describable<AzureVMAgentTemplate> {
                         jvmOptions});
 
             // First validate the subscription info.  If it is not correct,
-            // then we can't validate the 
-            String result = AzureVMManagementServiceDelegate.verifyConfiguration(servicePrincipal, resourceGroupName, 
+            // then we can't validate the
+            String result = AzureVMManagementServiceDelegate.verifyConfiguration(servicePrincipal, resourceGroupName,
                     maxVirtualMachinesLimit, deploymentTimeout);
             if (!result.equals(Constants.OP_SUCCESS)) {
                 return FormValidation.error(result);
@@ -834,15 +825,17 @@ public class AzureVMAgentTemplate implements Describable<AzureVMAgentTemplate> {
     public static String generateUniqueStorageAccountName(final String resourceGroupName, final ServicePrincipal servicePrincipal) {
         try {
             MessageDigest md = MessageDigest.getInstance("MD5");
-            if (null != servicePrincipal && !StringUtils.isEmpty(servicePrincipal.getSubscriptionId()))
+            if (null != servicePrincipal && !StringUtils.isEmpty(servicePrincipal.getSubscriptionId())) {
                 md.update(servicePrincipal.getSubscriptionId().getBytes("UTF-8"));
-            if (null != resourceGroupName)
+            }
+            if (null != resourceGroupName) {
                 md.update(resourceGroupName.getBytes("UTF-8"));
+            }
 
             String uid = DatatypeConverter.printBase64Binary(md.digest());
             uid = uid.substring(0, 22);
             uid = uid.toLowerCase();
-            uid = uid.replaceAll("[^a-z0-9]","a");
+            uid = uid.replaceAll("[^a-z0-9]", "a");
             return "jn" + uid;
         } catch (UnsupportedEncodingException | NoSuchAlgorithmException e) {
             LOGGER.log(Level.WARNING, "Could not genetare UID from the resource group name. Will fallback on using the resource group name.", e);

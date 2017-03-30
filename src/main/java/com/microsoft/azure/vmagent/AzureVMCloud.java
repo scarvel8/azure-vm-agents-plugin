@@ -1,12 +1,12 @@
 /*
  Copyright 2016 Microsoft, Inc.
- 
+
  Licensed under the Apache License, Version 2.0 (the "License");
  you may not use this file except in compliance with the License.
  You may obtain a copy of the License at
- 
+
  http://www.apache.org/licenses/LICENSE-2.0
- 
+
  Unless required by applicable law or agreed to in writing, software
  distributed under the License is distributed on an "AS IS" BASIS,
  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
@@ -21,13 +21,11 @@ import com.cloudbees.plugins.credentials.domains.DomainRequirement;
 import com.microsoft.azure.vmagent.Messages;
 import com.microsoft.azure.PagedList;
 import com.microsoft.azure.vmagent.exceptions.AzureCloudException;
-import com.microsoft.azure.vmagent.exceptions.AzureCredentialsValidationException;
 import com.microsoft.azure.management.Azure;
 import com.microsoft.azure.management.compute.OperatingSystemTypes;
 import com.microsoft.azure.management.compute.VirtualMachine;
 import com.microsoft.azure.management.resources.Deployment;
 import com.microsoft.azure.management.resources.DeploymentOperation;
-import com.microsoft.azure.management.resources.TargetResource;
 import com.microsoft.azure.util.AzureCredentials;
 import com.microsoft.azure.vmagent.remote.AzureVMAgentSSHLauncher;
 import com.microsoft.azure.vmagent.util.AzureUtil;
@@ -64,7 +62,6 @@ import com.microsoft.azure.vmagent.util.TokenCache;
 import hudson.init.InitMilestone;
 import hudson.init.Initializer;
 import hudson.model.Item;
-import hudson.model.Items;
 import hudson.security.ACL;
 import hudson.util.ListBoxModel;
 import java.nio.charset.Charset;
@@ -87,7 +84,7 @@ public class AzureVMCloud extends Cloud {
     private final List<AzureVMAgentTemplate> instTemplates;
 
     private final int deploymentTimeout;
-    
+
     private static ExecutorService threadPool;
 
     // True if the subscription has been verified.
@@ -207,7 +204,7 @@ public class AzureVMCloud extends Cloud {
         }
         return AzureVMCloud.threadPool;
     }
-    
+
     public int getMaxVirtualMachinesLimit() {
         return maxVirtualMachinesLimit;
     }
@@ -224,10 +221,10 @@ public class AzureVMCloud extends Cloud {
         return credentialsId;
     }
 
-    public AzureCredentials.ServicePrincipal getServicePrincipal()
-    {
-        if(credentials == null && credentialsId != null)
+    public AzureCredentials.ServicePrincipal getServicePrincipal() {
+        if (credentials == null && credentialsId != null) {
             return AzureCredentials.getServicePrincipal(credentialsId);
+        }
         return credentials;
     }
 
@@ -270,8 +267,7 @@ public class AzureVMCloud extends Cloud {
     }
 
     /**
-     * Given the number of VMs that are desired, returns the number of VMs that
-     * can be allocated.
+     * Given the number of VMs that are desired, returns the number of VMs that can be allocated.
      *
      * @param quantityDesired Number that are desired
      * @return Number that can be allocated
@@ -302,8 +298,8 @@ public class AzureVMCloud extends Cloud {
     }
 
     /**
-     * Sets the new approximate virtual machine count. This is run by the
-     * verification task to update the VM count periodically.
+     * Sets the new approximate virtual machine count. This is run by the verification task to
+     * update the VM count periodically.
      *
      * @param newCount
      */
@@ -358,8 +354,8 @@ public class AzureVMCloud extends Cloud {
     }
 
     /**
-     * Once a new deployment is created, construct a new AzureVMAgent object
-     * given information about the template
+     * Once a new deployment is created, construct a new AzureVMAgent object given information about
+     * the template
      *
      * @param template Template used to create the new agent
      * @param vmName Name of the created VM
@@ -389,11 +385,11 @@ public class AzureVMCloud extends Cloud {
             // Create a new RM client each time because the config may expire while
             // in this long running operation
             final Azure azureClient = Azure.configure()
-                .withLogLevel(Constants.DEFAULT_AZURE_SDK_LOGGING_LEVEL)
-                .withUserAgent(TokenCache.getUserAgent())
-                .authenticate(TokenCache.get(template.getAzureCloud().getServicePrincipal()))
-                .withSubscription(template.getAzureCloud().getServicePrincipal().getSubscriptionId());
-            PagedList<Deployment> deployments= azureClient.deployments().listByGroup(resourceGroupName);
+                    .withLogLevel(Constants.DEFAULT_AZURE_SDK_LOGGING_LEVEL)
+                    .withUserAgent(TokenCache.getUserAgent())
+                    .authenticate(TokenCache.get(template.getAzureCloud().getServicePrincipal()))
+                    .withSubscription(template.getAzureCloud().getServicePrincipal().getSubscriptionId());
+            PagedList<Deployment> deployments = azureClient.deployments().listByGroup(resourceGroupName);
             for (Deployment dep : deployments) {
                 PagedList<DeploymentOperation> ops = dep.deploymentOperations().list();
                 for (DeploymentOperation op : ops) {
@@ -404,11 +400,11 @@ public class AzureVMCloud extends Cloud {
                     final String type = op.targetResource().resourceType();
                     final String state = op.provisioningState();
                     if (op.targetResource().resourceType().contains("virtualMachine")) {
-                        if(resource.equalsIgnoreCase(vmName)) {
+                        if (resource.equalsIgnoreCase(vmName)) {
 
                             if (!state.equalsIgnoreCase("creating")
-                                && !state.equalsIgnoreCase("succeeded")
-                                && !state.equalsIgnoreCase("running")){
+                                    && !state.equalsIgnoreCase("succeeded")
+                                    && !state.equalsIgnoreCase("running")) {
                                 final String statusCode = op.statusCode();
                                 final Object statusMessage = op.statusMessage();
                                 String finalStatusMessage = statusCode;
@@ -416,25 +412,24 @@ public class AzureVMCloud extends Cloud {
                                     finalStatusMessage += " - " + statusMessage.toString();
                                 }
                                 throw new AzureCloudException(String.format("AzureVMCloud: createProvisionedAgent: Deployment %s: %s:%s - %s", new Object[]{state, type, resource, finalStatusMessage}));
-                            }
-                            else if (state.equalsIgnoreCase("succeeded")) {
+                            } else if (state.equalsIgnoreCase("succeeded")) {
                                 LOGGER.log(Level.INFO, "AzureVMCloud: createProvisionedAgent: VM available: {0}", resource);
 
                                 final VirtualMachine vm = azureClient.virtualMachines().getByGroup(resourceGroupName, resource);
                                 final OperatingSystemTypes osType = vm.storageProfile().osDisk().osType();
-                                
+
                                 AzureVMAgent newAgent = AzureVMManagementServiceDelegate.parseResponse(vmName, deploymentName, template, osType);
                                 AzureVMManagementServiceDelegate.setVirtualMachineDetails(newAgent, template);
                                 return newAgent;
                             } else {
                                 LOGGER.log(Level.INFO, "AzureVMCloud: createProvisionedAgent: Deployment {0} not yet finished ({1}): {2}:{3} - waited {4} seconds",
-                                    new Object[]{deploymentName, state, type, resource,
-                                        (maxTries - triesLeft) * sleepTimeInSeconds});
+                                        new Object[]{deploymentName, state, type, resource,
+                                            (maxTries - triesLeft) * sleepTimeInSeconds});
                             }
                         }
                     }
                 }
-                
+
             }
         } while (triesLeft > 0);
 
@@ -540,7 +535,7 @@ public class AzureVMCloud extends Cloud {
                                 @Override
                                 public Node call() throws Exception {
 
-                                    // Wait for the future to complete 
+                                    // Wait for the future to complete
                                     AzureVMDeploymentInfo info = deploymentFuture.get();
 
                                     final String deploymentName = info.getDeploymentName();
@@ -622,12 +617,10 @@ public class AzureVMCloud extends Cloud {
     }
 
     /**
-     * Wait till a node that connects through JNLP comes online and connects to
-     * Jenkins.
+     * Wait till a node that connects through JNLP comes online and connects to Jenkins.
      *
      * @param agent Node to wait for
-     * @throws Exception Throws if the wait time expires or other exception
-     * happens.
+     * @throws Exception Throws if the wait time expires or other exception happens.
      */
     private void waitUntilJNLPNodeIsOnline(final AzureVMAgent agent) throws Exception {
         LOGGER.log(Level.INFO, "Azure Cloud: waitUntilOnline: for agent {0}", agent.getDisplayName());
@@ -637,8 +630,9 @@ public class AzureVMCloud extends Cloud {
             public String call() {
                 try {
                     Computer computer = agent.toComputer();
-                    if (computer != null)
+                    if (computer != null) {
                         computer.waitUntilOnline();
+                    }
                 } catch (InterruptedException e) {
                     // just ignore
                 }
@@ -722,7 +716,7 @@ public class AzureVMCloud extends Cloud {
 
             if (StringUtils.isBlank(resourceGroupName)) {
                 resourceGroupName = Constants.DEFAULT_RESOURCE_GROUP_NAME;
-            }      
+            }
             AzureCredentials.ServicePrincipal credentials = AzureCredentials.getServicePrincipal(azureCredentialsId);
             try {
                 credentials.validate();

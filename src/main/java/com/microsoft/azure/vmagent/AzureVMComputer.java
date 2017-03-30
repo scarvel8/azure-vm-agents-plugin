@@ -1,12 +1,12 @@
 /*
  Copyright 2016 Microsoft, Inc.
- 
+
  Licensed under the Apache License, Version 2.0 (the "License");
  you may not use this file except in compliance with the License.
  You may obtain a copy of the License at
- 
+
  http://www.apache.org/licenses/LICENSE-2.0
- 
+
  Unless required by applicable law or agreed to in writing, software
  distributed under the License is distributed on an "AS IS" BASIS,
  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
@@ -15,20 +15,17 @@
  */
 package com.microsoft.azure.vmagent;
 
-import com.microsoft.azure.vmagent.Messages;
 import com.microsoft.azure.vmagent.exceptions.AzureCloudException;
 import com.microsoft.azure.vmagent.retry.NoRetryStrategy;
 import com.microsoft.azure.vmagent.util.ExecutionEngine;
-import java.io.IOException;
-import java.util.logging.Logger;
-
-import org.kohsuke.stapler.HttpRedirect;
-import org.kohsuke.stapler.HttpResponse;
-
 import hudson.slaves.AbstractCloudComputer;
 import hudson.slaves.OfflineCause;
+import java.io.IOException;
 import java.util.concurrent.Callable;
 import java.util.logging.Level;
+import java.util.logging.Logger;
+import org.kohsuke.stapler.HttpRedirect;
+import org.kohsuke.stapler.HttpResponse;
 
 public class AzureVMComputer extends AbstractCloudComputer<AzureVMAgent> {
 
@@ -49,7 +46,7 @@ public class AzureVMComputer extends AbstractCloudComputer<AzureVMAgent> {
         checkPermission(DELETE);
         this.setAcceptingTasks(false);
         final AzureVMAgent agent = getNode();
-        
+
         if (agent != null) {
             Callable<Void> task = new Callable<Void>() {
                 @Override
@@ -69,13 +66,13 @@ public class AzureVMComputer extends AbstractCloudComputer<AzureVMAgent> {
             try {
                 executionEngine.executeAsync(task, new NoRetryStrategy());
             } catch (AzureCloudException exception) {
-                // No need to throw exception back, just log and move on. 
+                // No need to throw exception back, just log and move on.
                 LOGGER.log(Level.INFO,
                         "AzureVMComputer: execute: failed to shutdown/delete " + agent.getDisplayName(),
                         exception);
             }
         }
-        
+
         return new HttpRedirect("..");
     }
 
@@ -86,10 +83,11 @@ public class AzureVMComputer extends AbstractCloudComputer<AzureVMAgent> {
     public void setSetOfflineByUser(boolean setOfflineByUser) {
         this.setOfflineByUser = setOfflineByUser;
     }
-    
+
     /**
      * Wait until the node is online
-     * @throws InterruptedException 
+     *
+     * @throws InterruptedException
      */
     @Override
     public void waitUntilOnline() throws InterruptedException {
@@ -97,12 +95,12 @@ public class AzureVMComputer extends AbstractCloudComputer<AzureVMAgent> {
     }
 
     /**
-     * We use temporary offline settings to do investigation of machines.
-     * To avoid deletion, we assume this came through a user call and set a bit.  Where
-     * this plugin might set things temp-offline (vs. disconnect), we'll reset the bit
-     * after calling setTemporarilyOffline
+     * We use temporary offline settings to do investigation of machines. To avoid deletion, we
+     * assume this came through a user call and set a bit. Where this plugin might set things
+     * temp-offline (vs. disconnect), we'll reset the bit after calling setTemporarilyOffline
+     *
      * @param setOffline
-     * @param oc 
+     * @param oc
      */
     @Override
     public void setTemporarilyOffline(boolean setOffline, OfflineCause oc) {
@@ -111,12 +109,12 @@ public class AzureVMComputer extends AbstractCloudComputer<AzureVMAgent> {
     }
 
     /**
-     * We use temporary offline settings to do investigation of machines.
-     * To avoid deletion, we assume this came through a user call and set a bit.  Where
-     * this plugin might set things temp-offline (vs. disconnect), we'll reset the bit
-     * after calling setTemporarilyOffline
+     * We use temporary offline settings to do investigation of machines. To avoid deletion, we
+     * assume this came through a user call and set a bit. Where this plugin might set things
+     * temp-offline (vs. disconnect), we'll reset the bit after calling setTemporarilyOffline
+     *
      * @param setOffline
-     * @param oc 
+     * @param oc
      */
     @Override
     public void setTemporarilyOffline(boolean setOffline) {

@@ -17,31 +17,11 @@ package com.microsoft.azure.vmagent;
 
 import com.cloudbees.plugins.credentials.common.StandardUsernamePasswordCredentials;
 import com.fasterxml.jackson.databind.JsonNode;
-import hudson.model.Descriptor.FormException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.microsoft.azure.CloudException;
 import com.microsoft.azure.PagedList;
-import com.microsoft.azure.vmagent.Messages;
-
-import com.microsoft.azure.storage.blob.CloudBlobContainer;
-import com.microsoft.azure.storage.core.PathUtility;
-
-import java.io.IOException;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.HashMap;
-import java.util.Map;
-import java.util.concurrent.Callable;
-import java.util.concurrent.ExecutionException;
-import java.util.concurrent.Future;
-import java.util.concurrent.TimeUnit;
-import java.util.concurrent.TimeoutException;
-import java.util.logging.Logger;
-
-import com.microsoft.azure.vmagent.exceptions.AzureCloudException;
-import com.microsoft.azure.vmagent.exceptions.UnrecoverableCloudException;
 import com.microsoft.azure.management.Azure;
 import com.microsoft.azure.management.compute.OperatingSystemTypes;
 import com.microsoft.azure.management.compute.PowerState;
@@ -54,38 +34,53 @@ import com.microsoft.azure.management.compute.VirtualMachineSku;
 import com.microsoft.azure.management.network.Network;
 import com.microsoft.azure.management.network.PublicIpAddress;
 import com.microsoft.azure.management.resources.DeploymentMode;
-import com.microsoft.azure.management.storage.SkuName;
 import com.microsoft.azure.management.resources.Provider;
 import com.microsoft.azure.management.resources.ProviderResourceType;
 import com.microsoft.azure.management.resources.fluentcore.arm.Region;
+import com.microsoft.azure.management.storage.SkuName;
 import com.microsoft.azure.management.storage.StorageAccount;
 import com.microsoft.azure.management.storage.StorageAccountKey;
-import com.microsoft.azure.vmagent.retry.ExponentialRetryStrategy;
-import com.microsoft.azure.vmagent.retry.NoRetryStrategy;
 import com.microsoft.azure.storage.AccessCondition;
 import com.microsoft.azure.storage.CloudStorageAccount;
 import com.microsoft.azure.storage.StorageCredentialsAccountAndKey;
+import com.microsoft.azure.storage.blob.CloudBlobContainer;
 import com.microsoft.azure.storage.blob.CloudBlockBlob;
 import com.microsoft.azure.storage.blob.ListBlobItem;
+import com.microsoft.azure.storage.core.PathUtility;
 import com.microsoft.azure.util.AzureCredentials;
 import com.microsoft.azure.util.AzureCredentials.ServicePrincipal;
+import com.microsoft.azure.vmagent.exceptions.AzureCloudException;
+import com.microsoft.azure.vmagent.exceptions.UnrecoverableCloudException;
+import com.microsoft.azure.vmagent.retry.ExponentialRetryStrategy;
+import com.microsoft.azure.vmagent.retry.NoRetryStrategy;
 import com.microsoft.azure.vmagent.util.AzureUtil;
 import com.microsoft.azure.vmagent.util.CleanUpAction;
 import com.microsoft.azure.vmagent.util.Constants;
 import com.microsoft.azure.vmagent.util.ExecutionEngine;
 import com.microsoft.azure.vmagent.util.FailureStage;
 import com.microsoft.azure.vmagent.util.TokenCache;
+import hudson.model.Descriptor.FormException;
+import java.io.IOException;
 import java.io.InputStream;
 import java.net.URI;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Date;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
+import java.util.List;
+import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.Callable;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 import java.util.logging.Level;
+import java.util.logging.Logger;
 import jenkins.model.Jenkins;
 import jenkins.slaves.JnlpSlaveAgentProtocol;
-
 import org.apache.commons.lang.StringUtils;
 
 /**
@@ -117,9 +112,9 @@ public class AzureVMManagementServiceDelegate {
     private static final Set<String> AVAILABLE_LOCATIONS_STD = getAvailableLocationsStandard();
 
     private static final Set<String> AVAILABLE_LOCATIONS_CHINA = getAvailableLocationsChina();
-    
-    private static final List<String> DEFAULT_VM_SIZES = Arrays.asList(new String[]{"Standard_A0","Standard_A1","Standard_A2","Standard_A3","Standard_A5","Standard_A4","Standard_A6","Standard_A7","Basic_A0","Basic_A1","Basic_A2","Basic_A3","Basic_A4","Standard_DS1_v2","Standard_DS2_v2","Standard_DS3_v2","Standard_DS4_v2","Standard_DS5_v2","Standard_DS11_v2","Standard_DS12_v2","Standard_DS13_v2","Standard_DS14_v2","Standard_DS15_v2","Standard_DS1","Standard_DS2","Standard_DS3","Standard_DS4","Standard_DS11","Standard_DS12","Standard_DS13","Standard_DS14","Standard_F1s","Standard_F2s","Standard_F4s","Standard_F8s","Standard_F16s","Standard_D1","Standard_D2","Standard_D3","Standard_D4","Standard_D11","Standard_D12","Standard_D13","Standard_D14","Standard_A1_v2","Standard_A2m_v2","Standard_A2_v2","Standard_A4m_v2","Standard_A4_v2","Standard_A8m_v2","Standard_A8_v2","Standard_D1_v2","Standard_D2_v2","Standard_D3_v2","Standard_D4_v2","Standard_D5_v2","Standard_D11_v2","Standard_D12_v2","Standard_D13_v2","Standard_D14_v2","Standard_D15_v2","Standard_F1","Standard_F2","Standard_F4","Standard_F8","Standard_F16"});
-    
+
+    private static final List<String> DEFAULT_VM_SIZES = Arrays.asList(new String[]{"Standard_A0", "Standard_A1", "Standard_A2", "Standard_A3", "Standard_A5", "Standard_A4", "Standard_A6", "Standard_A7", "Basic_A0", "Basic_A1", "Basic_A2", "Basic_A3", "Basic_A4", "Standard_DS1_v2", "Standard_DS2_v2", "Standard_DS3_v2", "Standard_DS4_v2", "Standard_DS5_v2", "Standard_DS11_v2", "Standard_DS12_v2", "Standard_DS13_v2", "Standard_DS14_v2", "Standard_DS15_v2", "Standard_DS1", "Standard_DS2", "Standard_DS3", "Standard_DS4", "Standard_DS11", "Standard_DS12", "Standard_DS13", "Standard_DS14", "Standard_F1s", "Standard_F2s", "Standard_F4s", "Standard_F8s", "Standard_F16s", "Standard_D1", "Standard_D2", "Standard_D3", "Standard_D4", "Standard_D11", "Standard_D12", "Standard_D13", "Standard_D14", "Standard_A1_v2", "Standard_A2m_v2", "Standard_A2_v2", "Standard_A4m_v2", "Standard_A4_v2", "Standard_A8m_v2", "Standard_A8_v2", "Standard_D1_v2", "Standard_D2_v2", "Standard_D3_v2", "Standard_D4_v2", "Standard_D5_v2", "Standard_D11_v2", "Standard_D12_v2", "Standard_D13_v2", "Standard_D14_v2", "Standard_D15_v2", "Standard_F1", "Standard_F2", "Standard_F4", "Standard_F8", "Standard_F16"});
+
     /**
      * Creates a new deployment of VMs based on the provided template
      *
@@ -136,7 +131,7 @@ public class AzureVMManagementServiceDelegate {
                 numberOfAgents,
                 TokenCache.getInstance(template.getAzureCloud().getServicePrincipal()),
                 new AzureVMAgentCleanUpTask.DeploymentRegistrar()
-                );
+        );
     }
 
     public static AzureVMDeploymentInfo createDeployment(final AzureVMAgentTemplate template, final int numberOfAgents, TokenCache tokenCache, AzureVMAgentCleanUpTask.DeploymentRegistrar deploymentRegistrar)
@@ -168,7 +163,7 @@ public class AzureVMManagementServiceDelegate {
 
             createAzureResourceGroup(azureClient, locationName, resourceGroupName);
             //For blob endpoint url in arm template, it's different based on different environments
-            //So create StorageAccount and get suffix 
+            //So create StorageAccount and get suffix
             createStorageAccount(azureClient, storageAccountName, locationName, resourceGroupName);
             StorageAccount storageAccount = getStorageAccount(azureClient, storageAccountName, resourceGroupName);
             String blobEndpointSuffix = getBlobEndpointSuffixForTemplate(storageAccount);
@@ -207,7 +202,7 @@ public class AzureVMManagementServiceDelegate {
             count.put("type", "int");
             count.put("defaultValue", numberOfAgents);
             ObjectNode.class.cast(tmp.get("parameters")).replace("count", count);
-            
+
             ObjectNode.class.cast(tmp.get("variables")).put("vmName", vmBaseName);
             ObjectNode.class.cast(tmp.get("variables")).put("location", locationName);
             ObjectNode.class.cast(tmp.get("variables")).put("jenkinsTag", Constants.AZURE_JENKINS_TAG_VALUE);
@@ -252,9 +247,9 @@ public class AzureVMManagementServiceDelegate {
                 List<StorageAccountKey> storageKeys = azureClient.storageAccounts()
                         .getByGroup(template.getResourceGroupName(), storageAccountName)
                         .getKeys();
-                if(storageKeys.isEmpty()) {
+                if (storageKeys.isEmpty()) {
                     throw new AzureCloudException("AzureVMManagementServiceDelegate: createDeployment: "
-                        + "Exception occured while fetching the storage account key");
+                            + "Exception occured while fetching the storage account key");
                 }
                 String storageAccountKey = storageKeys.get(0).value();
 
@@ -276,11 +271,11 @@ public class AzureVMManagementServiceDelegate {
             if (StringUtils.isNotBlank(storageAccountName)) {
                 ObjectNode.class.cast(tmp.get("variables")).put("storageAccountName", storageAccountName);
             }
-            
-            if(StringUtils.isNotBlank(blobEndpointSuffix)){
+
+            if (StringUtils.isNotBlank(blobEndpointSuffix)) {
                 ObjectNode.class.cast(tmp.get("variables")).put("blobEndpointSuffix", blobEndpointSuffix);
             }
-                
+
             // Network properties.  If the vnet name isn't blank then
             // then subnet name can't be either (based on verification rules)
             if (StringUtils.isNotBlank(template.getVirtualNetworkName())) {
@@ -309,10 +304,10 @@ public class AzureVMManagementServiceDelegate {
             // Pass the info off to the template so that it can be queued for update.
             template.handleTemplateProvisioningFailure(e.getMessage(), FailureStage.PROVISIONING);
             throw new AzureCloudException(e);
-        }
-        finally {
-            if (embeddedTemplate != null)
+        } finally {
+            if (embeddedTemplate != null) {
                 embeddedTemplate.close();
+            }
         }
     }
 
@@ -518,7 +513,7 @@ public class AzureVMManagementServiceDelegate {
 
         final Azure azureClient = TokenCache.getInstance(servicePrincipal).getAzureClient();
         VirtualMachine vm = azureClient.virtualMachines().getByGroup(resourceGroupName, vmName);
-        if(vm != null) {
+        if (vm != null) {
             LOGGER.log(Level.INFO, "AzureVMManagementServiceDelegate: virtualMachineExists: {0} exists", vmName);
             return true;
         } else {
@@ -605,8 +600,7 @@ public class AzureVMManagementServiceDelegate {
     }
 
     /**
-     * Gets a map of available locations mapping display name -> name (usable in
-     * template)
+     * Gets a map of available locations mapping display name -> name (usable in template)
      *
      * @return
      */
@@ -640,9 +634,8 @@ public class AzureVMManagementServiceDelegate {
     }
 
     /**
-     * Creates a map containing location -> vm role size list. This is hard
-     * coded and should be removed eventually once a transition to the 1.0.0 SDK
-     * is made
+     * Creates a map containing location -> vm role size list. This is hard coded and should be
+     * removed eventually once a transition to the 1.0.0 SDK is made
      *
      * @return New map
      */
@@ -675,9 +668,10 @@ public class AzureVMManagementServiceDelegate {
     }
 
     /**
-     * Gets map of Azure datacenter locations which supports Persistent VM role.
-     * If it can't fetch the data then it will return a default hardcoded set
-     * certificate based auth appears to be required.
+     * Gets map of Azure datacenter locations which supports Persistent VM role. If it can't fetch
+     * the data then it will return a default hardcoded set certificate based auth appears to be
+     * required.
+     *
      * @param servicePrincipal Service Principal
      * @return Set of available regions
      */
@@ -693,13 +687,13 @@ public class AzureVMManagementServiceDelegate {
                         continue;
                     }
 
-                    for (String location: resourceType.locations()) {
+                    for (String location : resourceType.locations()) {
                         if (!regions.contains(location)) {
                             try {
                                 if (!azureClient.virtualMachines().sizes().listByRegion(location).isEmpty()) {
                                     regions.add(location);
                                 }
-                            } catch (Exception e){
+                            } catch (Exception e) {
                                 //some of the provider regions might not be valid for other API calls. The SDK call will throw an exception instead of returning an emtpy list
                             }
                         }
@@ -719,7 +713,8 @@ public class AzureVMManagementServiceDelegate {
     }
 
     /**
-     * Gets list of virtual machine sizes. If it can't fetch the data then it will return a default hardcoded list
+     * Gets list of virtual machine sizes. If it can't fetch the data then it will return a default
+     * hardcoded list
      *
      * @param servicePrincipal Service Principal
      * @param location Location to obtain VM sizes for
@@ -758,23 +753,27 @@ public class AzureVMManagementServiceDelegate {
             final ServicePrincipal servicePrincipal,
             final String resourceGroupName, final String maxVMLimit, final String timeOut) {
         try {
-            if(!AzureUtil.isValidTimeOut(timeOut))
-                return "Invalid Timeout, Should be a positive number, minimum value "+Constants.DEFAULT_DEPLOYMENT_TIMEOUT_SEC;
+            if (!AzureUtil.isValidTimeOut(timeOut)) {
+                return "Invalid Timeout, Should be a positive number, minimum value " + Constants.DEFAULT_DEPLOYMENT_TIMEOUT_SEC;
+            }
 
-            if(!AzureUtil.isValidResourceGroupName(resourceGroupName))
-                return "Error: "+Messages.Azure_GC_Template_ResourceGroupName_Err();
+            if (!AzureUtil.isValidResourceGroupName(resourceGroupName)) {
+                return "Error: " + Messages.Azure_GC_Template_ResourceGroupName_Err();
+            }
 
-            if(!AzureUtil.isValidMAxVMLimit(maxVMLimit))
-                return "Invalid Limit, Should be a positive number, e.g. "+Constants.DEFAULT_MAX_VM_LIMIT;
+            if (!AzureUtil.isValidMAxVMLimit(maxVMLimit)) {
+                return "Invalid Limit, Should be a positive number, e.g. " + Constants.DEFAULT_MAX_VM_LIMIT;
+            }
 
             if (AzureUtil.isValidTimeOut(timeOut) && AzureUtil.isValidMAxVMLimit(maxVMLimit)
                     && AzureUtil.isValidResourceGroupName(resourceGroupName)) {
 
                 String result = verifyConfiguration(servicePrincipal, resourceGroupName);
-                if (!result.matches(Constants.OP_SUCCESS))
+                if (!result.matches(Constants.OP_SUCCESS)) {
                     return Messages.Azure_GC_Template_Val_Profile_Err();
+                }
             }
-        }catch (Exception e) {
+        } catch (Exception e) {
             LOGGER.log(Level.SEVERE, "Error validating profile", e);
             return Messages.Azure_GC_Template_Val_Profile_Err();
         }
@@ -806,10 +805,13 @@ public class AzureVMManagementServiceDelegate {
     }
 
     private static class VMStatus extends PowerState {
+
         public static final VMStatus PROVISIONING_OR_DEPROVISIONING = new VMStatus(Constants.PROVISIONING_OR_DEPROVISIONING_VM_STATUS);
+
         public VMStatus(PowerState p) {
             super(p.toString());
         }
+
         public VMStatus(String value) {
             super(value);
         }
@@ -836,8 +838,7 @@ public class AzureVMManagementServiceDelegate {
     }
 
     /**
-     * Checks if VM is reachable and in a valid state to connect (or getting
-     * ready to do so).
+     * Checks if VM is reachable and in a valid state to connect (or getting ready to do so).
      *
      * @param agent
      * @return
@@ -847,15 +848,15 @@ public class AzureVMManagementServiceDelegate {
         VMStatus status = getVirtualMachineStatus(agent.getServicePrincipal(), agent.getNodeName(), agent.getResourceGroupName());
         LOGGER.log(Level.INFO, "AzureVMManagementServiceDelegate: isVMAliveOrHealthy: status {0}", status.toString());
         return !(VMStatus.PROVISIONING_OR_DEPROVISIONING.equals(status)
-                || VMStatus.DEALLOCATING .equals(status)
+                || VMStatus.DEALLOCATING.equals(status)
                 || VMStatus.STOPPED.equals(status)
-                || VMStatus.DEALLOCATED .equals(status));
+                || VMStatus.DEALLOCATED.equals(status));
     }
 
     /**
-     * Retrieves count of virtual machine in a azure subscription. This count is
-     * based off of the VMs that the current credential set has access to. It
-     * also does not deal with the classic, model. So keep this in mind.
+     * Retrieves count of virtual machine in a azure subscription. This count is based off of the
+     * VMs that the current credential set has access to. It also does not deal with the classic,
+     * model. So keep this in mind.
      *
      * @param servicePrincipal
      * @param resourceGroupName
@@ -868,9 +869,9 @@ public class AzureVMManagementServiceDelegate {
             int count = 0;
             final AzureUtil.DeploymentTag deployTag = new AzureUtil.DeploymentTag();
             for (VirtualMachine vm : vms) {
-                final Map<String,String> tags = vm.tags();
-                if ( tags.containsKey(Constants.AZURE_RESOURCES_TAG_NAME) &&
-                     deployTag.isFromSameInstance(new AzureUtil.DeploymentTag(tags.get(Constants.AZURE_RESOURCES_TAG_NAME)))) {
+                final Map<String, String> tags = vm.tags();
+                if (tags.containsKey(Constants.AZURE_RESOURCES_TAG_NAME)
+                        && deployTag.isFromSameInstance(new AzureUtil.DeploymentTag(tags.get(Constants.AZURE_RESOURCES_TAG_NAME)))) {
                     count++;
                 }
             }
@@ -961,12 +962,12 @@ public class AzureVMManagementServiceDelegate {
                     }
                 }
             } catch (Exception e) {
-                 LOGGER.log(Level.INFO,
+                LOGGER.log(Level.INFO,
                         "AzureVMManagementServiceDelegate: terminateVirtualMachine: while deleting VM", e);
-                 // Check if VM is already deleted: if VM is already deleted then just ignore exception.
-                 if (!Constants.ERROR_CODE_RESOURCE_NF.equalsIgnoreCase(e.getMessage())) {
+                // Check if VM is already deleted: if VM is already deleted then just ignore exception.
+                if (!Constants.ERROR_CODE_RESOURCE_NF.equalsIgnoreCase(e.getMessage())) {
                     throw e;
-            }
+                }
             } finally {
                 LOGGER.log(Level.INFO, "Clean operation starting for {0} NIC and IP", vmName);
                 executionEngine.executeAsync(new Callable<Void>() {
@@ -986,7 +987,7 @@ public class AzureVMManagementServiceDelegate {
     }
 
     public static void removeStorageBlob(final Azure azureClient, final URI blobURI, final String resourceGroupName) throws Exception {
-         // Obtain container, storage account, and blob name
+        // Obtain container, storage account, and blob name
         String storageAccountName = blobURI.getHost().split("\\.")[0];
         String containerName = PathUtility.getContainerNameFromUri(blobURI, false);
         String blobName = PathUtility.getBlobNameFromURI(blobURI, false);
@@ -1003,7 +1004,7 @@ public class AzureVMManagementServiceDelegate {
             // the container is empty and we should delete it
             LOGGER.log(Level.INFO, "removeStorageBlob: Removing empty container ", containerName);
             container.delete();
-        }        
+        }
     }
 
     /**
@@ -1045,7 +1046,7 @@ public class AzureVMManagementServiceDelegate {
     public static void restartVirtualMachine(final AzureVMAgent agent) throws Exception {
         TokenCache.getInstance(agent.getServicePrincipal()).getAzureClient()
                 .virtualMachines()
-                .getByGroup(agent.getResourceGroupName(),agent.getNodeName())
+                .getByGroup(agent.getResourceGroupName(), agent.getNodeName())
                 .restart();
     }
 
@@ -1364,8 +1365,9 @@ public class AzureVMManagementServiceDelegate {
             if (StringUtils.isBlank(subnetName)) {
                 return Messages.Azure_GC_Template_subnet_Empty();
             } else {
-                if (virtualNetwork.subnets().get(subnetName) == null)
+                if (virtualNetwork.subnets().get(subnetName) == null) {
                     return Messages.Azure_GC_Template_subnet_NotFound(subnetName);
+                }
             }
         } else if (StringUtils.isNotBlank(subnetName) || usePrivateIP) {
             return Messages.Azure_GC_Template_VirtualNetwork_Null_Or_Empty();
@@ -1383,8 +1385,8 @@ public class AzureVMManagementServiceDelegate {
             final String imageOffer,
             final String imageSku,
             final String imageVersion) {
-        if ( (referenceType == AzureVMAgentTemplate.ImageReferenceType.UNKNOWN && StringUtils.isNotBlank(image)) || 
-               referenceType == AzureVMAgentTemplate.ImageReferenceType.CUSTOM ) {
+        if ((referenceType == AzureVMAgentTemplate.ImageReferenceType.UNKNOWN && StringUtils.isNotBlank(image))
+                || referenceType == AzureVMAgentTemplate.ImageReferenceType.CUSTOM) {
             try {
                 // Custom image verification.  We must verify that the VM image
                 // storage account is the same as the target storage account.
@@ -1418,7 +1420,7 @@ public class AzureVMManagementServiceDelegate {
         } else {
             try {
                 List<VirtualMachinePublisher> publishers = TokenCache.getInstance(servicePrincipal).getAzureClient().virtualMachineImages().publishers().listByRegion(getLocationName(location));
-                for (VirtualMachinePublisher  publisher : publishers) {
+                for (VirtualMachinePublisher publisher : publishers) {
                     if (!publisher.name().equalsIgnoreCase(imagePublisher)) {
                         continue;
                     }
@@ -1426,17 +1428,18 @@ public class AzureVMManagementServiceDelegate {
                         if (!offer.name().equalsIgnoreCase(imageOffer)) {
                             continue;
                         }
-                        for (VirtualMachineSku sku: offer.skus().list()) {
+                        for (VirtualMachineSku sku : offer.skus().list()) {
                             if (!sku.name().equalsIgnoreCase(imageSku)) {
                                 continue;
                             }
                             PagedList<VirtualMachineImage> images = sku.images().list();
-                            if ((imageVersion.equalsIgnoreCase("latest") || StringUtils.isEmpty(imageVersion) ) && images.size() > 0) { //the empty check is here to maintain backward compatibility
+                            if ((imageVersion.equalsIgnoreCase("latest") || StringUtils.isEmpty(imageVersion)) && images.size() > 0) { //the empty check is here to maintain backward compatibility
                                 return Constants.OP_SUCCESS;
                             }
                             for (VirtualMachineImage vmImage : images) {
-                                if (vmImage.version().equalsIgnoreCase(imageVersion))
+                                if (vmImage.version().equalsIgnoreCase(imageVersion)) {
                                     return Constants.OP_SUCCESS;
+                                }
                             }
                             return Messages.Azure_GC_Template_ImageReference_Not_Valid("Invalid image version");
                         }
@@ -1461,17 +1464,18 @@ public class AzureVMManagementServiceDelegate {
             Azure azureClient = TokenCache.getInstance(servicePrincipal).getAzureClient();
             //if it's not available we need to check if it's already in our resource group
             isAvailable = azureClient.storageAccounts().checkNameAvailability(storageAccountName).isAvailable();
-            if ( !isAvailable && null == azureClient.storageAccounts().getByGroup(resourceGroupName, storageAccountName) ) {
-                    return Messages.Azure_GC_Template_SA_Already_Exists();
+            if (!isAvailable && null == azureClient.storageAccounts().getByGroup(resourceGroupName, storageAccountName)) {
+                return Messages.Azure_GC_Template_SA_Already_Exists();
             } else {
                 return Constants.OP_SUCCESS;
             }
         } catch (Exception e) {
             LOGGER.log(Level.INFO, e.getMessage());
-            if (!isAvailable)
+            if (!isAvailable) {
                 return Messages.Azure_GC_Template_SA_Already_Exists();
-            else
+            } else {
                 return Messages.Azure_GC_Template_SA_Cant_Validate();
+            }
         }
     }
 
@@ -1511,8 +1515,7 @@ public class AzureVMManagementServiceDelegate {
     }
 
     /**
-     * Verify the validity of the image parameters (does not verify actual
-     * values)
+     * Verify the validity of the image parameters (does not verify actual values)
      *
      * @param image
      * @param osType
@@ -1530,8 +1533,8 @@ public class AzureVMManagementServiceDelegate {
             final String imageOffer,
             final String imageSku,
             final String imageVersion) {
-        if ( (referenceType == AzureVMAgentTemplate.ImageReferenceType.UNKNOWN && (StringUtils.isNotBlank(image) && StringUtils.isNotBlank(osType)) ) || 
-                referenceType == AzureVMAgentTemplate.ImageReferenceType.CUSTOM) {
+        if ((referenceType == AzureVMAgentTemplate.ImageReferenceType.UNKNOWN && (StringUtils.isNotBlank(image) && StringUtils.isNotBlank(osType)))
+                || referenceType == AzureVMAgentTemplate.ImageReferenceType.CUSTOM) {
             // Check that the image string is a URI by attempting to create
             // a URI
             final URI u;
@@ -1550,38 +1553,38 @@ public class AzureVMManagementServiceDelegate {
             return Messages.Azure_GC_Template_ImageReference_Not_Valid("Image parameters should not be blank.");
         }
     }
-    
+
     /**
      * Create Azure resource Group
-     * 
+     *
      * @param azureClient
      * @param locationName
      * @param resourceGroupName
      * @return
      */
     private static void createAzureResourceGroup(Azure azureClient, String locationName, String resourceGroupName) throws AzureCloudException {
-        try{
+        try {
             azureClient.resourceGroups()
-            .define(resourceGroupName)
-            .withRegion(locationName)
-            .create();
-        } catch(Exception e) {
+                    .define(resourceGroupName)
+                    .withRegion(locationName)
+                    .create();
+        } catch (Exception e) {
             LOGGER.log(Level.SEVERE, e.getMessage());
             throw new AzureCloudException(String.format(" Failed to create resource group with group name %s, location %s",
-            resourceGroupName, locationName), e);
+                    resourceGroupName, locationName), e);
         }
     }
-    
+
     /**
      * Create storage Account
-     * 
+     *
      * @param azureClient
      * @param targetStorageAccount
      * @param location
      * @param resourceGroupName
      * @return
      */
-    private static void createStorageAccount(Azure azureClient, String targetStorageAccount, String location, String resourceGroupName) throws AzureCloudException{
+    private static void createStorageAccount(Azure azureClient, String targetStorageAccount, String location, String resourceGroupName) throws AzureCloudException {
         try {
             azureClient.storageAccounts().define(targetStorageAccount)
                     .withRegion(location)
@@ -1594,116 +1597,120 @@ public class AzureVMManagementServiceDelegate {
                     targetStorageAccount, location, resourceGroupName), e);
         }
     }
-    
+
     /**
      * Get StorageAccount by resourceGroup name and storageAccount name
      *
      * @param azureClient
      * @param storageAccountName
      * @param resourceGroupName
-     * 
+     *
      * @return StorageAccount object
      */
-    private static StorageAccount getStorageAccount(Azure azureClient, String targetStorageAccount, String resourceGroupName){
+    private static StorageAccount getStorageAccount(Azure azureClient, String targetStorageAccount, String resourceGroupName) {
         return azureClient.storageAccounts().getByGroup(resourceGroupName, targetStorageAccount);
     }
-    
+
     /**
-     * Get the blob endpoint suffix for , it's like ".blob.core.windows.net/" for public azure
-     * or ".blob.core.chinacloudapi.cn" for Azure China
+     * Get the blob endpoint suffix for , it's like ".blob.core.windows.net/" for public azure or
+     * ".blob.core.chinacloudapi.cn" for Azure China
      *
      * @param storageAccount
      * @return endpointSuffix
      */
-    public static String getBlobEndpointSuffixForTemplate(StorageAccount storageAccount){
+    public static String getBlobEndpointSuffixForTemplate(StorageAccount storageAccount) {
         return getBlobEndPointSuffix(storageAccount, Constants.BLOB, Constants.BLOB_ENDPOINT_PREFIX, Constants.FWD_SLASH);
     }
-    
+
     /**
-     * Get the blob endpoint suffix for constructing CloudStorageAccount  , it's like "core.windows.net"
-     * or "core.chinacloudapi.cn" for AzureChina
+     * Get the blob endpoint suffix for constructing CloudStorageAccount , it's like
+     * "core.windows.net" or "core.chinacloudapi.cn" for AzureChina
      *
      * @param storageAccount
      * @return endpointSuffix
      */
-    public static String getBlobEndpointSuffixForCloudStorageAccount(StorageAccount storageAccount){
+    public static String getBlobEndpointSuffixForCloudStorageAccount(StorageAccount storageAccount) {
         return getBlobEndPointSuffix(storageAccount, Constants.BLOB_ENDPOINT_SUFFIX_STARTKEY, "", "");
     }
-    
+
     /**
      * Get the blob endpoint substring with prefix and suffix
      *
      * @param storageAccount
-     * @param startKey uses to get the start position of sub string, if it's null or empty then whole input string will be used
-     * @param prefix the prefix of substring will be added, if it's null or empty then it will not be added'
-     * @param suffix the suffix will be append to substring if substring doesn't contain it,if it's null or empty then it will not be added
+     * @param startKey uses to get the start position of sub string, if it's null or empty then
+     * whole input string will be used
+     * @param prefix the prefix of substring will be added, if it's null or empty then it will not
+     * be added'
+     * @param suffix the suffix will be append to substring if substring doesn't contain it,if it's
+     * null or empty then it will not be added
      * @return endpointSuffix
      */
-    private static String getBlobEndPointSuffix(StorageAccount storageAccount, String startKey, String prefix, String suffix)
-    {
+    private static String getBlobEndPointSuffix(StorageAccount storageAccount, String startKey, String prefix, String suffix) {
         String endpointSuffix = null;
-        if(storageAccount != null){
+        if (storageAccount != null) {
             String blobUri = storageAccount.endPoints().primary().blob().toLowerCase();
             endpointSuffix = getSubString(blobUri, startKey, prefix, suffix);
         }
-        
+
         return endpointSuffix;
     }
 
-    
     /**
-     * Get substring with startKey,  endSuffix and prefix
+     * Get substring with startKey, endSuffix and prefix
      *
-     * @param startKey startKey used to get the start position of string, if it's null or empty then whole input string will be used
-     * @param prefix the prefix of substring will be added, if it's null or empty then it will not be added'
-     * @param suffix the suffix will be append to substring if substring doesn't contain it,if it's null or empty then it will not be added
-     * @return 
+     * @param startKey startKey used to get the start position of string, if it's null or empty then
+     * whole input string will be used
+     * @param prefix the prefix of substring will be added, if it's null or empty then it will not
+     * be added'
+     * @param suffix the suffix will be append to substring if substring doesn't contain it,if it's
+     * null or empty then it will not be added
+     * @return
      */
-    private static String getSubString(String uri, String startKey, String prefix, String suffix){
+    private static String getSubString(String uri, String startKey, String prefix, String suffix) {
         String subString = null;
-        if(StringUtils.isNotBlank(uri)){
-            if(StringUtils.isNotEmpty(startKey) && uri.indexOf(startKey) >= 0){
-                subString = uri.substring(uri.indexOf(startKey));                
+        if (StringUtils.isNotBlank(uri)) {
+            if (StringUtils.isNotEmpty(startKey) && uri.indexOf(startKey) >= 0) {
+                subString = uri.substring(uri.indexOf(startKey));
             } else {
                 subString = uri;
             }
             subString = StringUtils.isNotEmpty(prefix) ? prefix + subString : subString;
-            if(StringUtils.isNotEmpty(suffix) && subString.lastIndexOf(suffix) < subString.length() - suffix.length()){
+            if (StringUtils.isNotEmpty(suffix) && subString.lastIndexOf(suffix) < subString.length() - suffix.length()) {
                 subString = subString + suffix;
             }
         }
         return subString;
     }
-    
+
     /**
      * Get CloudStorageAccount
      *
      * @param storageAccount
      * @return CloudStorageAccount object
      */
-    public static CloudStorageAccount getCloudStorageAccount(StorageAccount storageAccount) throws AzureCloudException{
-        List<StorageAccountKey> storageKeys =storageAccount.getKeys();
-        if(storageKeys.isEmpty()) {
+    public static CloudStorageAccount getCloudStorageAccount(StorageAccount storageAccount) throws AzureCloudException {
+        List<StorageAccountKey> storageKeys = storageAccount.getKeys();
+        if (storageKeys.isEmpty()) {
             throw new AzureCloudException("AzureVMManagementServiceDelegate: uploadCustomScript: "
                     + "Exception occured while fetching the storage account key");
         }
 
         String storageAccountKey = storageKeys.get(0).value();
         String blobSuffix = getBlobEndpointSuffixForCloudStorageAccount(storageAccount);
-        LOGGER.log(Level.INFO, "AzureVMManagementServiceDelegate: getCloudStorageAccount: the suffix for contruct CloudStorageCloud is {0}",blobSuffix);
-        if(StringUtils.isEmpty(blobSuffix)){
+        LOGGER.log(Level.INFO, "AzureVMManagementServiceDelegate: getCloudStorageAccount: the suffix for contruct CloudStorageCloud is {0}", blobSuffix);
+        if (StringUtils.isEmpty(blobSuffix)) {
             throw new AzureCloudException("AzureVMManagementServiceDelegate: getCloudStorageAccount:"
                     + "Exception occured while getting blobSuffix, it's empty'");
         }
         try {
             return new CloudStorageAccount(new StorageCredentialsAccountAndKey(storageAccount.name(), storageAccountKey), false, blobSuffix);
-        } catch (Exception e){
+        } catch (Exception e) {
             LOGGER.log(Level.SEVERE, "AzureVMManagementServiceDelegate: GetCloudStorageAccount: unable to get CloudStorageAccount with storage account {0} and blob Suffix {1}",
                     new Object[]{storageAccount.name(), blobSuffix});
             throw new AzureCloudException(e);
         }
     }
-    
+
     /**
      * Get CloudBlobContainer
      *
@@ -1711,20 +1718,20 @@ public class AzureVMManagementServiceDelegate {
      * @param containerName
      * @return CloudBlobContainer
      */
-    public static CloudBlobContainer getCloudBlobContainer(CloudStorageAccount account, String containerName) throws AzureCloudException{
+    public static CloudBlobContainer getCloudBlobContainer(CloudStorageAccount account, String containerName) throws AzureCloudException {
         try {
             return account.createCloudBlobClient().getContainerReference(containerName);
-        } catch (Exception e){
+        } catch (Exception e) {
             LOGGER.log(Level.SEVERE, "AzureVMManagementServiceDelegate: getCloudBlobContainer: unable to get CloudStorageAccount with container name {1}",
                     new Object[]{containerName});
             throw new AzureCloudException(e);
         }
     }
 
-    public static CloudBlobContainer getCloudBlobContainer(Azure azureClient, String resourceGroupName, String targetStorageAccount, String blobContanerName) throws AzureCloudException{
+    public static CloudBlobContainer getCloudBlobContainer(Azure azureClient, String resourceGroupName, String targetStorageAccount, String blobContanerName) throws AzureCloudException {
         StorageAccount storageAccount = azureClient.storageAccounts()
-            .getByGroup(resourceGroupName, targetStorageAccount);
+                .getByGroup(resourceGroupName, targetStorageAccount);
         CloudStorageAccount account = getCloudStorageAccount(storageAccount);
         return getCloudBlobContainer(account, blobContanerName);
-    }   
+    }
 }
