@@ -40,8 +40,10 @@ import hudson.slaves.NodeProperty;
 import hudson.slaves.ComputerLauncher;
 import hudson.slaves.OfflineCause;
 import hudson.slaves.RetentionStrategy;
+import hudson.util.FormValidation;
 import java.util.logging.Level;
 import org.jvnet.localizer.Localizable;
+import org.kohsuke.stapler.QueryParameter;
 
 public class AzureVMAgent extends AbstractCloudSlave {
 
@@ -75,6 +77,10 @@ public class AzureVMAgent extends AbstractCloudSlave {
 
     // set during post create step
     private String publicDNSName;
+
+    private String publicIP;
+
+    private String privateIP;
 
     private int sshPort;
 
@@ -352,6 +358,22 @@ public class AzureVMAgent extends AbstractCloudSlave {
         this.sshPort = sshPort;
     }
 
+    public String getPublicIP() {
+        return publicIP;
+    }
+
+    public void setPublicIP(final String publicIP) {
+        this.publicIP = publicIP;
+    }
+
+    public String getPrivateIP() {
+        return privateIP;
+    }
+
+    public void setPrivateIP(final String privateIP) {
+        this.privateIP = privateIP;
+    }
+
     public int getRetentionTimeInMin() {
         return retentionTimeInMin;
     }
@@ -435,6 +457,26 @@ public class AzureVMAgent extends AbstractCloudSlave {
         return AzureVMManagementServiceDelegate.isVMAliveOrHealthy(this);
     }
 
+    private final Object publicIPAttachLock = new Object();
+
+    public String attachPublicIP() {
+        if (!publicIP.isEmpty()) {
+            return publicIP;
+        }
+        //attachPublicIP will try and provision a public IP or will return if one already exists
+        // because of that we can just wait here until we have a public IP
+        synchronized (publicIPAttachLock) {
+            AzureVMCloud azureVMCloud = (AzureVMCloud) Jenkins.getInstance().getCloud(cloudName);
+            try {
+                AzureVMManagementServiceDelegate.attachPublicIP(this, azureVMCloud.getAzureAgentTemplate(templateName));
+            } catch (Exception e) {
+                LOGGER.log(Level.INFO,
+                        "AzureVMAgent: error while trying to attach a public IP to {0} : {1}", new Object[]{getNodeName(), e});
+            }
+            return publicIP;
+        }
+    }
+
     @Override
     public String toString() {
         return "AzureVMAgent ["
@@ -467,6 +509,21 @@ public class AzureVMAgent extends AbstractCloudSlave {
         @Override
         public boolean isInstantiable() {
             return false;
+        }
+
+        //abusing a bit of f:validateButton because it has nice progress
+        public FormValidation doAttachPublicIP(@QueryParameter String vmAgentName) {
+            AzureVMAgent vmAgent = (AzureVMAgent) Jenkins.getInstance().getNode(vmAgentName);
+            String publicIP = "";
+            if (vmAgent != null) {
+                publicIP = vmAgent.attachPublicIP();
+            }
+
+            if (publicIP.isEmpty()) {
+                return FormValidation.error(Messages.Azure_VM_Agent_Attach_Public_IP_Failure());
+            } else {
+                return FormValidation.ok(Messages.Azure_VM_Agent_Attach_Public_IP_Success() + " ( " + publicIP + " ) ");
+            }
         }
     }
 }
